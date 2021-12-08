@@ -1,15 +1,16 @@
 """Basic neural network interface"""
 
+import warnings
 import copy
 import abc
 import misc
 
-from globals import nn
+from pytorchutils.globals import nn
 
 class BasicModel(nn.Module, metaclass=abc.ABCMeta):
     """Class for basic model"""
     def __init__(self, config):
-        super(BasicModel, self).__init__()
+        super().__init__()
 
         # Using a deepcopy of the configuration before using it,
         # to avoid any potential mutation when iterating asynchronously over configurations
@@ -22,12 +23,12 @@ class BasicModel(nn.Module, metaclass=abc.ABCMeta):
         self.nb_units = config.get('nb_units', None)
         self.nb_layers = config.get('nb_layers', 0)
         if self.input_size == 0:
-            raise ValueError("Error: No input size defined.")
+            warnings.warn("Warning: No input size defined.")
         if self.output_size == 0:
             raise ValueError("Error: No output size defined.")
         if self.nb_units is None:
-            raise ValueError(
-                "Error: No number of hidden units per layer defined. "
+            warnings.warn(
+                "Warning: No number of hidden units per layer defined. "
                 "This value has to be specified for most neural network architectures."
             )
         if self.nb_layers == 0:
