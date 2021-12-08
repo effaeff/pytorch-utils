@@ -1,11 +1,11 @@
 """Convolutional neural network model"""
 
-import numpy as np
 from functools import reduce
+import numpy as np
 
 import misc
-from basic_model import BasicModel
-from globals import nn
+from pytorchutils.basic_model import BasicModel
+from pytorchutils.globals import nn, torch
 
 class CNNModel(BasicModel):
     """
@@ -25,21 +25,12 @@ class CNNModel(BasicModel):
                 "The length of channels should equal nb_layers + 1."
             )
 
-        self.image_size = self.config.get('image_size', None)
-        if self.image_size is None:
-            raise ValueError(
-                "Error: No image_size specified. "
-                "This is mandatory for using CNN architectures."
-            )
-        if np.shape(self.image_size) != (2,):
-            raise ValueError(
-                "Error: Invalid shape of image_size. "
-                "The provided shape should be (2,)."
-            )
+        self.dim = self.config.get('dimension', 2)
 
         self.fc_units = []
-        self.fc_units.append(self.image_size[0] * self.image_size[1] * self.channels[-1])
-        if isinstance(self.nb_units, int) and self.nb_units != 0:
+        self.fc_units.append(self.channels[-1])
+
+        if isinstance(self.nb_units, int) and self.nb_units is not None:
             self.fc_units.append(self.nb_units)
         elif isinstance(self.nb_units, (list, np.ndarray)):
             for unit_value in self.nb_units:
@@ -55,17 +46,20 @@ class CNNModel(BasicModel):
         conv_layer = nn.ModuleList()
         for layer_idx in range(self.nb_layers):
             layer = nn.Sequential(
-                nn.Conv2d(
+                getattr(nn, f'Conv{self.dim}d')(
                     self.channels[layer_idx],
                     self.channels[layer_idx + 1],
                     kernel_size=self.config.get('kernel_size_conv', 3),
                     stride=self.config.get('stride_conv', 1),
-                    padding=self.config.get('padding', 1)
+                    padding=self.config.get('padding_conv', 1),
+                    dilation=self.config.get('dilation_conv', 0)
                 ),
                 self.activation,
-                nn.MaxPool2d(
+                getattr(nn, f'MaxPool{self.dim}d')(
                     kernel_size=self.config.get('kernel_size_pool', 2),
-                    stride=self.config.get('stride_pool', 2)
+                    padding=self.config.get('padding_pool', 0),
+                    stride=self.config.get('stride_pool', 2),
+                    dilation=self.config.get('dilation_pool', 1)
                 )
             )
             conv_layer.append(layer)
@@ -82,6 +76,7 @@ class CNNModel(BasicModel):
     def forward(self, inp):
         """Forward pass through convolution and fully connected layer"""
         pred_out = reduce(lambda x, y: y(x), self.conv_layer, inp)
+        pred_out = torch.squeeze(pred_out)
         for layer in self.fc_layer[:-1]:
             pred_out = layer(pred_out)
             pred_out = self.dropout(pred_out)
