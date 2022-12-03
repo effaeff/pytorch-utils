@@ -1,5 +1,6 @@
 """Variational autoencoder model"""
 
+import collections.abc
 from functools import reduce
 import numpy as np
 
@@ -14,7 +15,6 @@ class VariationalEncoder(BasicModel):
 
         # Convolutions are used for encoder layer by default
         self.channels = self.config.get('channels', None)
-        print(self.channels)
         if self.channels is None:
             raise ValueError(
                 "Error: No channels for convolutions defined. "
@@ -61,20 +61,44 @@ class VariationalEncoder(BasicModel):
     def encoder_layer(self):
         """Property for a set of conv->activation->maxpool layers"""
         encoder_layer = nn.ModuleList()
+        dilation = self.config.get('dilation_conv', 1)
+        # Check of multiple dilation configs should be concatenated
+        dilation_sequence = isinstance(dilation, (collections.abc.Sequence, np.ndarray))
         for layer_idx in range(self.nb_layers):
-            layer = nn.Sequential(
+            # Regardless if one or multiple dilation configs are considered,
+            # the first conv layer modifies the number of channels
+            # With default setting, conv layers do not change sequence/image size
+            conv = [
                 getattr(nn, f'Conv{self.dim}d')(
                     self.channels[layer_idx],
                     self.channels[layer_idx + 1],
                     kernel_size=self.config.get('kernel_size_conv', 3),
                     stride=self.config.get('stride_conv', 1),
                     padding=self.config.get('padding_conv', 1),
-                    dilation=self.config.get('dilation_conv', 0)
-                ),
+                    dilation=dilation[0] if dilation_sequence else dilation
+                )
+            ]
+            # For the following conv layers, the number of channels should remain the same
+            if dilation_sequence:
+                for value in dilation[1:]:
+                    conv.append(
+                        getattr(nn, f'Conv{self.dim}d')(
+                            self.channels[layer_idx + 1],
+                            self.channels[layer_idx + 1],
+                            kernel_size=self.config.get('kernel_size_conv', 3),
+                            stride=self.config.get('stride_conv', 1),
+                            padding=self.config.get('padding_conv', 1),
+                            dilation=value
+                        )
+                    )
+
+            layer = nn.Sequential(
+                *conv,
                 self.activation,
+                # With default setting, pooling layers reduce sequence/image size by half
                 getattr(nn, f'MaxPool{self.dim}d')(
-                    kernel_size=self.config.get('kernel_size_pool', 2),
-                    padding=self.config.get('padding_pool', 0),
+                    kernel_size=self.config.get('kernel_size_pool', 3),
+                    padding=self.config.get('padding_pool', 1),
                     stride=self.config.get('stride_pool', 2),
                     dilation=self.config.get('dilation_pool', 1)
                 )

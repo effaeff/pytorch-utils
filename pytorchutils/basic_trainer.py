@@ -26,7 +26,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
         self.config = copy.deepcopy(config)
 
         self.models_dir = self.config.get('models_dir', './')
-        self.results_dir = self.config.get('results_dir', './')
+        self.results_dir = self.config.get('models_dir', './')
         self.max_models_to_keep = self.config.get('max_to_keep', -1)
 
         # Remember current epoch for saving/resuming training
@@ -183,7 +183,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                 else:
                     self.save_model(self.model, epoch_idx, max_to_keep=self.max_models_to_keep)
                 self.save_optimizer(epoch_idx, max_to_keep=self.max_models_to_keep)
-            if validate_every > 0 and epoch_idx % validate_every == 0:
+            if validate_every > 0 and epoch_idx % validate_every == 0 and epoch_idx > 0:
                 error, std = self.validate(epoch_idx)
                 errors[int((epoch_idx - start_epoch) / validate_every)] = error
                 stds[int((epoch_idx - start_epoch) / validate_every)] = std
