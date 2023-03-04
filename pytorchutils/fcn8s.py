@@ -12,9 +12,12 @@ class FCNModel(nn.Module):
         super().__init__()
         self.config = copy.deepcopy(config)
 
+        self.n_channels = self.config.get('n_channels', 3)
         self.output_size = self.config.get('output_size', 0)
         if self.output_size == 0:
             raise ValueError("Error: No output size defined.")
+
+        self.channel_to_vgg = nn.Conv2d(self.n_channels, 3, kernel_size=3, padding=1)
 
         self.pretrained_net = VGGModel(
             self.config['models_dir'],
@@ -42,7 +45,7 @@ class FCNModel(nn.Module):
         self.fc7 = nn.Conv2d(4096, 4096, kernel_size=1)
         self.relu7 = nn.ReLU(inplace=True)
         self.drop7 = nn.Dropout2d()
-        ########fcn part
+        # ########fcn part
         self.score_fc = nn.Conv2d(4096, 512, 1)
 
 
@@ -88,6 +91,8 @@ class FCNModel(nn.Module):
 
     def forward(self, inp):
         """Forward pass through vgg and upscaling layers"""
+        if self.n_channels != 3:
+            inp = self.activation(self.channel_to_vgg(inp))
         vgg_out = self.pretrained_net(inp)
         x_5 = vgg_out['x5']  # size = (N, 512, H/32, W/32)
         x_4 = vgg_out['x4']  # size = (N, 512, H/16, W/16)
