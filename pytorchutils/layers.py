@@ -2,6 +2,7 @@
 
 import math
 import numpy as np
+import einops
 
 from pytorchutils.globals import torch, nn, DEVICE
 
@@ -80,3 +81,116 @@ class WindowingLayer(nn.Module):
         """Heaviside function"""
         res = 0 if value < 0 else 1
         return res
+
+class SelfAttention(nn.Module):
+    """
+    Self attention layer
+    Referrences:
+        - https://arxiv.org/abs/1805.08318
+    """
+    def __init__(self, n_channels, image_size, n_patches, embedding_size, patchify=False):
+        super().__init__()
+        self.patchify = patchify
+        # Use 1D convolutions to process data of arbitrary spacial dimensions
+        self.query, self.key, self.value = [
+            nn.Conv1d(n_channels, c, kernel_size=1)
+            for c in [
+                n_channels//8 if n_channels//8 > 0 else n_channels,
+                n_channels//8 if n_channels//8 > 0 else n_channels,
+                n_channels
+            ]
+        ]
+        self.gamma = nn.Parameter(torch.zeros(1))
+
+        self.sequentializer = ImageSequentializer(n_patches, image_size, embedding_size)
+
+        self.upscale = nn.Linear(embedding_size, int(image_size[0] * image_size[1]))
+
+    def forward(self, inp):
+        size = inp.size()
+        if self.patchify:
+            inp = self.sequentializer(inp)
+        else:
+            # Reshape spacial dimensions to 1
+            inp = inp.view(*size[:2], -1) # (B, C, N)
+
+        query, key, value = self.query(inp), self.key(inp), self.value(inp)
+
+        energy = torch.bmm(query.transpose(1, 2), key)
+        attention = nn.functional.softmax(energy, dim=1) # (B, N, N)
+
+        out = self.gamma * torch.bmm(value, attention) # + inp
+
+        if self.patchify:
+            out = self.upscale(out)
+
+        return torch.cat((inp, out), dim=1)
+        # return out.view(*size)
+
+class ImageSequentializer(nn.Module):
+
+    def __init__(self, num_patches, image_size, embedding_size):
+        super(ImageSequentializer, self).__init__()
+        self.num_patches = num_patches
+        self.linear = nn.Linear(
+            int(image_size[0] // num_patches[0] *
+            image_size[1] // num_patches[0] *
+            num_patches[0] * num_patches[1]),
+            embedding_size
+        )
+        self.pos_embedding = PositionalEncoding(embedding_size)
+
+    def forward(self, x):
+
+        patches = einops.rearrange(
+            x,
+            "b c (p1 h) (p2 w) -> b c (p1 p2) h w",
+            p1=self.num_patches[0],
+            p2=self.num_patches[1]
+        )
+
+        # DEBUG
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots(16, 16)
+        # for i in range(self.num_patches[0]):
+            # for j in range(self.num_patches[1]):
+
+                # ax[i, j].imshow(
+                    # patches[0, 0, i * self.num_patches[0] + j].cpu().detach().numpy(),
+                    # vmin=0,
+                    # vmax=1
+                # )
+        # plt.show()
+
+        flat_patches = einops.rearrange(
+            patches,
+            "b c p h w -> b c (p h w)"
+        )
+
+        embeddings = self.linear(flat_patches)
+        embeddings = self.pos_embedding(embeddings)
+
+        return embeddings
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor, shape [seq_len, batch_size, embedding_dim]
+        """
+        x = x + self.pe[:x.size(0)]
+        return self.dropout(x)
