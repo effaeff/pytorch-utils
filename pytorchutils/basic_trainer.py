@@ -159,8 +159,8 @@ class BasicTrainer(metaclass=abc.ABCMeta):
         print("Start training...")
         start_epoch = self.current_epoch
         if validate_every > 0:
-            errors = np.empty(int((self.max_iter - start_epoch) / validate_every))
-            stds = np.empty(int((self.max_iter - start_epoch) / validate_every))
+            errors = np.empty((self.max_iter - start_epoch) // validate_every)
+            stds = np.empty((self.max_iter - start_epoch) // validate_every)
         for epoch_idx in range(start_epoch, self.max_iter):
             print("Epoch {}...".format(epoch_idx))
             if isinstance(self.model, (list, np.ndarray)):
@@ -185,8 +185,8 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                 self.save_optimizer(epoch_idx, max_to_keep=self.max_models_to_keep)
             if validate_every > 0 and epoch_idx % validate_every == 0 and epoch_idx > 0:
                 error, std = self.validate(epoch_idx)
-                errors[int((epoch_idx - start_epoch) / validate_every)] = error
-                stds[int((epoch_idx - start_epoch) / validate_every)] = std
+                errors[(epoch_idx - start_epoch) // validate_every - 1] = error
+                stds[(epoch_idx - start_epoch) // validate_every - 1] = std
                 print("Validation error: {} % +- {} %".format(error, std))
             self.current_epoch += 1
 
@@ -202,9 +202,9 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             )
             # Plot error progression
             __, axs = plt.subplots(1, 1)
-            axs.plot(np.arange(start_epoch, self.max_iter, validate_every), errors)
+            axs.plot(np.arange(start_epoch, self.max_iter-1, validate_every), errors)
             axs.fill_between(
-                np.arange(start_epoch, self.max_iter, validate_every),
+                np.arange(start_epoch, self.max_iter-1, validate_every),
                 errors - stds,
                 errors + stds,
                 alpha=.5
