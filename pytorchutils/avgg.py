@@ -12,7 +12,6 @@ from pytorchutils.layers import (
     LinearAttention,
     Residual,
     PreNorm,
-    Downsample,
     WSConv2d
 )
 
@@ -114,6 +113,7 @@ class AVGGModel(models.vgg.VGG):
         # insert_modules[-1] = Residual(PreNorm(512, Attention(512))).to(DEVICE)
         # insert_modules[-2] = Residual(PreNorm(512, Attention(512))).to(DEVICE)
         # insert_modules[-3] = Residual(PreNorm(256, Attention(256))).to(DEVICE)
+        # insert_modules[0] = Residual(PreNorm(64, Attention(64))).to(DEVICE)
         for idx, mod in zip(insert_indices, insert_modules):
             exec(f"self.features[idx] = nn.Sequential(self.features[idx], mod)")
 
