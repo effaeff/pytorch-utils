@@ -21,7 +21,8 @@ class AHGModel(nn.Module):
             raise ValueError("Error: No output size defined.")
 
         # Transform input channels to 3, so that VGG weights can be used
-        self.channel_to_vgg = nn.Conv2d(self.n_channels, 3, kernel_size=3, padding=1)
+        self.channel_to_vgg = nn.Conv2d(self.n_channels, 3, kernel_size=1)
+        # self.channel_to_vgg = nn.Conv2d(self.n_channels, 3, kernel_size=3, padding=1)
         self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
         self.pretrained_net = AVGGModel(
@@ -59,7 +60,7 @@ class AHGModel(nn.Module):
     def forward(self, inp):
         """Forward pass through vgg and upscaling layers"""
         if self.n_channels != 3:
-            inp = self.activation(self.channel_to_vgg(inp))
+            inp = torch.sigmoid(self.channel_to_vgg(inp))
         inp = self.norm(inp)
         vgg_out = self.pretrained_net(inp)
         # vgg_out, attn = self.pretrained_net(inp)
@@ -104,8 +105,8 @@ class AHGModel(nn.Module):
         pred_out = self.classifier(pred_out)
 
         # Size = (N, output_size, H/1, W/1)
-        return pred_out#, attn
+        return pred_out
 
     def inp2rgb(self, inp):
         """Evaluate self.channel_to_vgg to get rgb channels for inp"""
-        return self.activation(self.channel_to_vgg(inp))
+        return torch.sigmoid(self.channel_to_vgg(inp))
