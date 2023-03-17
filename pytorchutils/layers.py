@@ -266,6 +266,12 @@ class PositionalEncoding(nn.Module):
         inp = inp + self.pe[:inp.size(0)]
         return self.dropout(inp)
 
+def Upsample(dim):
+    return nn.Sequential(
+        nn.Upsample(scale_factor=2, mode="nearest"),
+        nn.Conv2d(dim, dim, 3, padding=1),
+    )
+
 class Residual(nn.Module):
     """
     Residual connection around func
