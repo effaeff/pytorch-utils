@@ -39,6 +39,68 @@ class AHGModel(nn.Module):
         self.deconv4 = nn.ConvTranspose2d(128, 64, 3, stride=2, padding=1, output_padding=1)
         self.deconv5 = nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1)
 
+        # self.decode1 = nn.Sequential(
+            # nn.ConvTranspose2d(512, 512, 3, padding=1),
+            # nn.BatchNorm2d(512),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(512, 512, 3, padding=1),
+            # nn.BatchNorm2d(512),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(512, 512, 3, padding=1),
+            # nn.BatchNorm2d(512),
+            # nn.ReLU(inplace=True),
+            # Residual(PreNorm(512, LinearAttention(0, 512))),
+            # # nn.Upsample(scale_factor=2, mode='nearest')
+            # Upsample(512)
+        # )
+        # self.decode2 = nn.Sequential(
+            # nn.ConvTranspose2d(512, 256, 3, padding=1),
+            # nn.BatchNorm2d(256),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(256, 256, 3, padding=1),
+            # nn.BatchNorm2d(256),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(256, 256, 3, padding=1),
+            # nn.BatchNorm2d(256),
+            # nn.ReLU(inplace=True),
+            # Residual(PreNorm(256, LinearAttention(0, 256))),
+            # # nn.Upsample(scale_factor=2, mode='nearest')
+            # Upsample(256)
+        # )
+        # self.decode3 = nn.Sequential(
+            # nn.ConvTranspose2d(256, 128, 3, padding=1),
+            # nn.BatchNorm2d(128),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(128, 128, 3, padding=1),
+            # nn.BatchNorm2d(128),
+            # nn.ReLU(inplace=True),
+            # Residual(PreNorm(128, LinearAttention(0, 128))),
+            # # nn.Upsample(scale_factor=2, mode='nearest')
+            # Upsample(128)
+        # )
+        # self.decode4 = nn.Sequential(
+            # nn.ConvTranspose2d(128, 64, 3, padding=1),
+            # nn.BatchNorm2d(64),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(64, 64, 3, padding=1),
+            # nn.BatchNorm2d(64),
+            # nn.ReLU(inplace=True),
+            # Residual(PreNorm(64, LinearAttention(0, 64))),
+            # # nn.Upsample(scale_factor=2, mode='nearest')
+            # Upsample(64)
+        # )
+        # self.decode5 = nn.Sequential(
+            # nn.ConvTranspose2d(64, 32, 3, padding=1),
+            # nn.BatchNorm2d(32),
+            # nn.ReLU(inplace=True),
+            # nn.ConvTranspose2d(32, 32, 3, padding=1),
+            # nn.BatchNorm2d(32),
+            # nn.ReLU(inplace=True),
+            # Residual(PreNorm(32, LinearAttention(0, 32))),
+            # # nn.Upsample(scale_factor=2, mode='nearest')
+            # Upsample(32)
+        # )
+
         self.attn1 = Residual(PreNorm(512, LinearAttention(0, 512)))
         self.attn2 = Residual(PreNorm(256, LinearAttention(0, 256)))
         self.attn3 = Residual(PreNorm(128, LinearAttention(0, 128)))
@@ -64,12 +126,11 @@ class AHGModel(nn.Module):
         self.classifier = nn.Conv2d(32, self.output_size, kernel_size=1)
 
     def forward(self, inp):
-        """Forward pass through vgg and upscaling layers"""
+        """Forward pass"""
         if self.n_channels != 3:
             inp = torch.sigmoid(self.channel_to_vgg(inp))
         inp = self.norm(inp)
         vgg_out = self.pretrained_net(inp)
-        # vgg_out, attn = self.pretrained_net(inp)
         x_5 = vgg_out['x5']  # size = (N, 512, H/32, W/32)
         x_4 = vgg_out['x4']  # size = (N, 512, H/16, W/16)
         x_3 = vgg_out['x3']  # size = (N, 256, H/8,  W/8)
@@ -112,11 +173,27 @@ class AHGModel(nn.Module):
         pred_out = self.activation(self.deconv5(pred_out))
         pred_out = self.canny5(pred_out)
         pred_out = self.attn5(pred_out)
+
         # Size = (N, output_size, H/1, W/1)
         pred_out = self.classifier(pred_out)
 
-        # Size = (N, output_size, H/1, W/1)
-        return pred_out
+    # def forward(self, inp):
+        # if self.n_channels != 3:
+            # inp = torch.sigmoid(self.channel_to_vgg(inp))
+        # inp = self.norm(inp)
+        # vgg_out = self.pretrained_net(inp)
+        # x_5 = vgg_out['x5']  # size = (N, 512, H/32, W/32)
+        # x_4 = vgg_out['x4']  # size = (N, 512, H/16, W/16)
+        # x_3 = vgg_out['x3']  # size = (N, 256, H/8,  W/8)
+        # x_2 = vgg_out['x2']  # size = (N, 128, H/4,  W/4)
+        # x_1 = vgg_out['x1']  # size = (N, 64, H/2,  W/2)
+        # pred_out = self.bn1(self.decode1(x_5) + x_4)
+        # pred_out = self.bn2(self.decode2(pred_out) + x_3)
+        # pred_out = self.bn3(self.decode3(pred_out) + x_2)
+        # pred_out = self.bn4(self.decode4(pred_out) + x_1)
+        # pred_out = self.decode5(pred_out)
+        # pred_out = self.classifier(pred_out)
+        # return pred_out
 
     def inp2rgb(self, inp):
         """Evaluate self.channel_to_vgg to get rgb channels for inp"""

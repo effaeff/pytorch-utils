@@ -270,6 +270,12 @@ class PositionalEncoding(nn.Module):
         inp = inp + self.pe[:inp.size(0)]
         return self.dropout(inp)
 
+def Upsample(dim):
+    return nn.Sequential(
+        nn.Upsample(scale_factor=2, mode="nearest"),
+        nn.Conv2d(dim, dim, 3, padding=1),
+    )
+
 class Residual(nn.Module):
     """
     Residual connection around func
@@ -351,32 +357,32 @@ def get_sobel_kernel(k=3):
     return sobel_2D
 
 def get_thin_kernels(start=0, end=360, step=45):
-        k_thin = 3  # actual size of the directional kernel
-        # increase for a while to avoid interpolation when rotating
-        k_increased = k_thin + 2
+    k_thin = 3  # actual size of the directional kernel
+    # increase for a while to avoid interpolation when rotating
+    k_increased = k_thin + 2
 
-        # get 0° angle directional kernel
-        thin_kernel_0 = torch.zeros((k_increased, k_increased))
-        thin_kernel_0[k_increased // 2, k_increased // 2] = 1
-        thin_kernel_0[k_increased // 2, k_increased // 2 + 1:] = -1
+    # get 0° angle directional kernel
+    thin_kernel_0 = torch.zeros((k_increased, k_increased))
+    thin_kernel_0[k_increased // 2, k_increased // 2] = 1
+    thin_kernel_0[k_increased // 2, k_increased // 2 + 1:] = -1
 
-        # rotate the 0° angle directional kernel to get the other ones
-        thin_kernels = []
-        for angle in range(start, end, step):
-            (h, w) = thin_kernel_0.shape
-            # get the center to not rotate around the (0, 0) coord point
-            center = (w // 2, h // 2)
-            # apply rotation
-            rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1)
-            kernel_angle_increased = cv2.warpAffine(thin_kernel_0, rotation_matrix, (w, h), cv2.INTER_NEAREST)
+    # rotate the 0° angle directional kernel to get the other ones
+    thin_kernels = []
+    for angle in range(start, end, step):
+        (h, w) = thin_kernel_0.shape
+        # get the center to not rotate around the (0, 0) coord point
+        center = (w // 2, h // 2)
+        # apply rotation
+        rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1)
+        kernel_angle_increased = cv2.warpAffine(thin_kernel_0, rotation_matrix, (w, h), cv2.INTER_NEAREST)
 
-            # get the k=3 kerne
-            kernel_angle = kernel_angle_increased[1:-1, 1:-1]
-            is_diag = (abs(kernel_angle) == 1)      # because of the interpolation
-            kernel_angle = kernel_angle * is_diag   # because of the interpolation
-            thin_kernels.append(kernel_angle)
+        # get the k=3 kerne
+        kernel_angle = kernel_angle_increased[1:-1, 1:-1]
+        is_diag = (abs(kernel_angle) == 1)      # because of the interpolation
+        kernel_angle = kernel_angle * is_diag   # because of the interpolation
+        thin_kernels.append(kernel_angle)
 
-        return thin_kernels
+    return thin_kernels
 
 class CannyFilter(nn.Module):
     def __init__(self, k_gaussian=3, mu=0, sigma=1, k_sobel=3):
