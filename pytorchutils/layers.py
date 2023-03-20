@@ -347,9 +347,9 @@ def get_gaussian_kernel(k=3, mu=0, sigma=1, normalize=True):
 
 def get_sobel_kernel(k=3):
     # get range
-    range = torch.linspace(-(k // 2), k // 2, k)
+    range = np.linspace(-(k // 2), k // 2, k)
     # compute a grid the numerator and the axis-distances
-    x, y = torch.meshgrid(range, range, indexing='xy')
+    x, y = np.meshgrid(range, range)
     sobel_2D_numerator = x
     sobel_2D_denominator = (x**2 + y**2)
     sobel_2D_denominator[:, k // 2] = 1  # avoid division by zero
@@ -362,7 +362,7 @@ def get_thin_kernels(start=0, end=360, step=45):
     k_increased = k_thin + 2
 
     # get 0° angle directional kernel
-    thin_kernel_0 = torch.zeros((k_increased, k_increased))
+    thin_kernel_0 = np.zeros((k_increased, k_increased))
     thin_kernel_0[k_increased // 2, k_increased // 2] = 1
     thin_kernel_0[k_increased // 2, k_increased // 2 + 1:] = -1
 
