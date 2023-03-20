@@ -4,7 +4,7 @@ import copy
 
 from pytorchutils.avgg import AVGGModel
 from pytorchutils.vgg import VGGModel
-from pytorchutils.layers import Attention, LinearAttention, PreNorm, Residual, CannyFilter
+from pytorchutils.layers import Attention, LinearAttention, PreNorm, Residual, CannyFilter, CannyFilter2
 from pytorchutils.globals import nn, DEVICE, torch
 
 from torchvision import transforms
@@ -107,11 +107,11 @@ class AHGModel(nn.Module):
         self.attn4 = Residual(PreNorm(64, LinearAttention(0, 64)))
         self.attn5 = Residual(PreNorm(32, LinearAttention(0, 32)))
 
-        self.canny1 = CannyFilter()
-        self.canny2 = CannyFilter()
-        self.canny3 = CannyFilter()
-        self.canny4 = CannyFilter()
-        self.canny5 = CannyFilter()
+        self.canny1 = CannyFilter2()
+        self.canny2 = CannyFilter2()
+        self.canny3 = CannyFilter2()
+        self.canny4 = CannyFilter2()
+        self.canny5 = CannyFilter2()
 
         self.bn1 = nn.BatchNorm2d(512)
         self.bn2 = nn.BatchNorm2d(256)
