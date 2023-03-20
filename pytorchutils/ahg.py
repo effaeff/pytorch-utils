@@ -4,7 +4,7 @@ import copy
 
 from pytorchutils.avgg import AVGGModel
 from pytorchutils.vgg import VGGModel
-from pytorchutils.layers import Attention, LinearAttention, PreNorm, Residual
+from pytorchutils.layers import Attention, LinearAttention, PreNorm, Residual, CannyFilter
 from pytorchutils.globals import nn, DEVICE, torch
 
 from torchvision import transforms
@@ -45,6 +45,12 @@ class AHGModel(nn.Module):
         self.attn4 = Residual(PreNorm(64, LinearAttention(0, 64)))
         self.attn5 = Residual(PreNorm(32, LinearAttention(0, 32)))
 
+        self.canny1 = CannyFilter()
+        self.canny2 = CannyFilter()
+        self.canny3 = CannyFilter()
+        self.canny4 = CannyFilter()
+        self.canny5 = CannyFilter()
+
         self.bn1 = nn.BatchNorm2d(512)
         self.bn2 = nn.BatchNorm2d(256)
         self.bn3 = nn.BatchNorm2d(128)
@@ -72,6 +78,7 @@ class AHGModel(nn.Module):
 
         # Size = (N, 512, H/16, W/16)
         pred_out = self.activation(self.deconv1(x_5))
+        pred_out = self.canny1(pred_out)
         pred_out = self.attn1(pred_out)
         # Element-wise add, size = (N, 512, H/16, W/16)
         pred_out = self.bn1(pred_out + x_4)
@@ -79,6 +86,7 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 256, H/8, W/8)
         pred_out = self.activation(self.deconv2(pred_out))
+        pred_out = self.canny2(pred_out)
         pred_out = self.attn2(pred_out)
         # Element-wise add, size = (N, 256, H/8, W/8)
         pred_out = self.bn2(pred_out + x_3)
@@ -86,6 +94,7 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 128, H/4, W/4)
         pred_out = self.activation(self.deconv3(pred_out))
+        pred_out = self.canny3(pred_out)
         pred_out = self.attn3(pred_out)
         # Element-wise add, size = (N, 128, H/4, W/4)
         pred_out = self.bn3(pred_out + x_2)
@@ -93,6 +102,7 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 64, H/2, W/2)
         pred_out = self.activation(self.deconv4(pred_out))
+        pred_out = self.canny4(pred_out)
         pred_out = self.attn4(pred_out)
         # Element-wise add, size = (N, 64, H/2, W/2)
         pred_out = self.bn4(pred_out + x_1)
@@ -100,6 +110,7 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 32, H, W)
         pred_out = self.activation(self.deconv5(pred_out))
+        pred_out = self.canny5(pred_out)
         pred_out = self.attn5(pred_out)
         # Size = (N, output_size, H/1, W/1)
         pred_out = self.classifier(pred_out)
