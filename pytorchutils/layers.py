@@ -408,15 +408,14 @@ class CannyFilter(nn.Module):
                                         kernel_size=k_sobel,
                                         padding=k_sobel // 2,
                                         bias=False)
-        self.sobel_filter_x.weight[:] = sobel_2D
-
+        self.sobel_filter_x.weight = nn.Parameter(torch.from_numpy(sobel_2D), requires_grad=False)
 
         self.sobel_filter_y = nn.Conv2d(in_channels=1,
                                         out_channels=1,
                                         kernel_size=k_sobel,
                                         padding=k_sobel // 2,
                                         bias=False)
-        self.sobel_filter_y.weight[:] = sobel_2D.T
+        self.sobel_filter_y.weight = nn.Parameter(torch.from_numpy(sobel_2D.T), requires_grad=False)
 
 
         # thin
@@ -428,7 +427,8 @@ class CannyFilter(nn.Module):
                                             kernel_size=thin_kernels[0].shape,
                                             padding=thin_kernels[0].shape[-1] // 2,
                                             bias=False)
-        self.directional_filter.weight[:, 0] = torch.from_numpy(directional_kernels)
+        self.directional_filter.weight.data[:, 0] = torch.from_numpy(directional_kernels)
+        self.directional_filter.weight.requires_grad = False
 
         # hysteresis
         hysteresis = np.ones((3, 3)) + 0.25
@@ -437,8 +437,7 @@ class CannyFilter(nn.Module):
                                     kernel_size=3,
                                     padding=1,
                                     bias=False)
-        self.hysteresis.weight[:] = torch.from_numpy(hysteresis)
-
+        self.hysteresis.weight = nn.Parameter(torch.from_numpy(hysteresis), requires_grad=False)
 
     def forward(self, img, low_threshold=None, high_threshold=None, hysteresis=False):
         # set the setps tensors
