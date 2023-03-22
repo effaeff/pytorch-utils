@@ -328,6 +328,7 @@ class CannyFilter(nn.Module):
     """Canny filter with learnable thresholds"""
     def __init__(self, dim):
         super().__init__()
+        self.dim = dim
 
         # self.threshold_high = nn.Parameter(torch.rand(1))
         self.threshold_low = nn.Parameter(torch.rand(1))
@@ -469,36 +470,58 @@ class CannyFilter(nn.Module):
         grad_orientation = torch.round(grad_orientation / 45.0 ) * 45.0
 
         # Thin edged (non-max suppression)
-        all_filtered = self.directional_filter(grad_mag)
+        directional = self.directional_filter(grad_mag)
 
         inidices_positive = (grad_orientation / 45) % 8
         inidices_negative = ((grad_orientation / 45) + 4) % 8
 
-        pixel_count = torch.prod(torch.tensor(img.size())).to(DEVICE)
-        pixel_range = torch.arange(0, pixel_count).to(DEVICE)
+        # thin_edges = torch.zeros(grad_mag.size()).to(DEVICE)
+        thin_edges = grad_mag.clone()
+        # non maximum suppression direction by direction
+        # for c in range(self.dim):
+            # local_thin = grad_mag[:, c].clone()
+        for pos_i in range(4):
+            neg_i = pos_i + 4
+            # get the oriented grad for the angle
+            is_oriented_i = (inidices_positive==pos_i)
+            is_oriented_i = is_oriented_i + (inidices_negative==neg_i)
+            pos_directional = directional[:, pos_i::8]
+            neg_directional = directional[:, neg_i::8]
+            selected_direction = torch.stack([pos_directional, neg_directional])
 
-        indices = (inidices_positive.view(-1).data * pixel_count + pixel_range)
-        channel_select_filtered_positive = all_filtered.view(-1)[indices.long()].view(
-            img.size()
-        )
+            # get the local maximum pixels for the angle
+            is_max = selected_direction.min(dim=0)[0] > 0.0
 
-        indices = (inidices_negative.view(-1).data * pixel_count + pixel_range)
-        channel_select_filtered_negative = all_filtered.view(-1)[indices.long()].view(
-            img.size()
-        )
+            # apply non maximum suppression
+            to_remove = (is_max == 0) * (is_oriented_i) > 0
+            thin_edges[to_remove] = 0.0
+        # thin_edges[:, c] = local_thin
 
-        channel_select_filtered = torch.stack(
-            [channel_select_filtered_positive, channel_select_filtered_negative]
-        )
+        # pixel_count = torch.prod(torch.tensor(img.size())).to(DEVICE)
+        # pixel_range = torch.arange(0, pixel_count).unsqueeze(0).to(DEVICE)
 
-        is_max = channel_select_filtered.min(dim=0)[0] > 0.0
+        # indices = (inidices_positive.view(-1).data * pixel_count + pixel_range)
+        # channel_select_filtered_positive = all_filtered.view(-1)[indices.long()].view(
+            # img.size()
+        # )
+
+        # indices = (inidices_negative.view(-1).data * pixel_count + pixel_range)
+        # channel_select_filtered_negative = all_filtered.view(-1)[indices.long()].view(
+            # img.size()
+        # )
+
+        # channel_select_filtered = torch.stack(
+            # [channel_select_filtered_positive, channel_select_filtered_negative]
+        # )
+
+        # is_max = channel_select_filtered.min(dim=0)[0] > 0.0
 
         # thin_edges = grad_mag.clone()
-        grad_mag[is_max==0] = 0.0
+        # thin_edges[is_max==0] = 0.0
 
         # Threshold
-        # thresholded = thin_edges.clone()
-        thresholded = self.thresholding(grad_mag)
+        thresholded = thin_edges.clone()
+        thresholded = self.thresholding(thresholded)
 
         return thresholded#, thin_edges, grad_mag
 
