@@ -4,7 +4,7 @@ import copy
 
 from pytorchutils.avgg import AVGGModel
 from pytorchutils.vgg import VGGModel
-from pytorchutils.layers import Attention, LinearAttention, PreNorm, Residual, CannyFilter, CannyFilter2
+from pytorchutils.layers import Attention, LinearAttention, PreNorm, Residual, CannyFilter
 from pytorchutils.globals import nn, DEVICE, torch
 
 from torchvision import transforms
@@ -101,22 +101,22 @@ class AHGModel(nn.Module):
             # Upsample(32)
         # )
 
-        self.attn1 = Residual(PreNorm(512, LinearAttention(0, 512)))
-        self.attn2 = Residual(PreNorm(256, LinearAttention(0, 256)))
-        self.attn3 = Residual(PreNorm(128, LinearAttention(0, 128)))
+        #self.attn1 = Residual(PreNorm(512, LinearAttention(0, 512)))
+        #self.attn2 = Residual(PreNorm(256, LinearAttention(0, 256)))
+        #self.attn3 = Residual(PreNorm(128, LinearAttention(0, 128)))
         self.attn4 = Residual(PreNorm(64, LinearAttention(0, 64)))
+        self.attn1 = Residual(PreNorm(512, Attention(512)))
+        self.attn2 = Residual(PreNorm(256, Attention(256)))
+        self.attn3 = Residual(PreNorm(128, Attention(128)))
+        #self.attn4 = Residual(PreNorm(64, Attention(64)))
         self.attn5 = Residual(PreNorm(32, LinearAttention(0, 32)))
-
-        self.canny1 = CannyFilter2()
-        self.canny2 = CannyFilter2()
-        self.canny3 = CannyFilter2()
-        self.canny4 = CannyFilter2()
-        self.canny5 = CannyFilter2()
 
         self.bn1 = nn.BatchNorm2d(512)
         self.bn2 = nn.BatchNorm2d(256)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(64)
+
+        self.canny = CannyFilter(32)
 
         # self.skip_conv1 = nn.Conv2d(1024, 512, 1)
         # self.skip_conv2 = nn.Conv2d(512, 256, 1)
@@ -124,6 +124,8 @@ class AHGModel(nn.Module):
         # self.skip_conv4 = nn.Conv2d(128, 64, 1)
 
         self.classifier = nn.Conv2d(32, self.output_size, kernel_size=1)
+
+        self.edges_fc = nn.Conv2d(32, 1, 1)
 
     def forward(self, inp):
         """Forward pass"""
@@ -139,7 +141,6 @@ class AHGModel(nn.Module):
 
         # Size = (N, 512, H/16, W/16)
         pred_out = self.activation(self.deconv1(x_5))
-        pred_out = self.canny1(pred_out)
         pred_out = self.attn1(pred_out)
         # Element-wise add, size = (N, 512, H/16, W/16)
         pred_out = self.bn1(pred_out + x_4)
@@ -147,7 +148,6 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 256, H/8, W/8)
         pred_out = self.activation(self.deconv2(pred_out))
-        pred_out = self.canny2(pred_out)
         pred_out = self.attn2(pred_out)
         # Element-wise add, size = (N, 256, H/8, W/8)
         pred_out = self.bn2(pred_out + x_3)
@@ -155,7 +155,6 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 128, H/4, W/4)
         pred_out = self.activation(self.deconv3(pred_out))
-        pred_out = self.canny3(pred_out)
         pred_out = self.attn3(pred_out)
         # Element-wise add, size = (N, 128, H/4, W/4)
         pred_out = self.bn3(pred_out + x_2)
@@ -163,7 +162,6 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 64, H/2, W/2)
         pred_out = self.activation(self.deconv4(pred_out))
-        pred_out = self.canny4(pred_out)
         pred_out = self.attn4(pred_out)
         # Element-wise add, size = (N, 64, H/2, W/2)
         pred_out = self.bn4(pred_out + x_1)
@@ -171,11 +169,15 @@ class AHGModel(nn.Module):
         pred_out = self.activation(pred_out)
         # Size = (N, 32, H, W)
         pred_out = self.activation(self.deconv5(pred_out))
-        pred_out = self.canny5(pred_out)
         pred_out = self.attn5(pred_out)
+
+        edges = self.canny(pred_out)
+        edges = self.edges_fc(edges)
 
         # Size = (N, output_size, H/1, W/1)
         pred_out = self.classifier(pred_out)
+
+        return pred_out, edges
 
     # def forward(self, inp):
         # if self.n_channels != 3:
