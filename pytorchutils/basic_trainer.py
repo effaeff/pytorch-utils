@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 import misc
 
 from pytorchutils.globals import nn, torch, DEVICE
+from pytorchutils import losses
 
 
 class BasicTrainer(metaclass=abc.ABCMeta):
@@ -41,7 +42,11 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                 "especially for those using backpropagation."
             )
         loss_label = config.get('loss', 'MSELoss') # MSE being default
-        self.loss = getattr(nn, loss_label)()
+
+        self.loss = (
+            getattr(nn, loss_label)() if getattr(nn, loss_label, None) is not None else
+            getattr(losses, loss_label)()
+        )
 
         # Every trainer has one or an array of models.
         parameters = []
