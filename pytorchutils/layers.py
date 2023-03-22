@@ -462,7 +462,7 @@ class CannyFilter(nn.Module):
         grad_y = self.sobel_filter_vertical(blurred)
 
         # Thick edges
-        grad_mag = torch.sqrt(grad_x**2 + grad_y**2)
+        grad_mag = torch.hypot(grad_x, grad_y)
 
         grad_orientation = torch.atan2(grad_y, grad_x) * 180 / torch.pi
         grad_orientation += 180.0
@@ -493,14 +493,14 @@ class CannyFilter(nn.Module):
 
         is_max = channel_select_filtered.min(dim=0)[0] > 0.0
 
-        thin_edges = grad_mag.clone()
-        thin_edges[is_max==0] = 0.0
+        # thin_edges = grad_mag.clone()
+        grad_mag[is_max==0] = 0.0
 
         # Threshold
-        thresholded = thin_edges.clone()
-        thresholded = self.thresholding(thresholded)
+        # thresholded = thin_edges.clone()
+        thresholded = self.thresholding(grad_mag)
 
-        return thresholded, thin_edges, grad_mag
+        return thresholded#, thin_edges, grad_mag
 
     def thresholding(self, img):
         """Double thresholding"""
