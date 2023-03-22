@@ -326,7 +326,7 @@ class LayerNorm(nn.Module):
 
 class CannyFilter(nn.Module):
     """Canny filter with learnable thresholds"""
-    def __init__(self):
+    def __init__(self, dim):
         super().__init__()
 
         # self.threshold_high = nn.Parameter(torch.rand(1))
@@ -340,19 +340,21 @@ class CannyFilter(nn.Module):
         generated_filters = gaussian(filter_size,std=1.0).reshape([1, filter_size])
 
         self.gaussian_filter_horizontal = nn.Conv2d(
-            1,
-            1,
+            dim,
+            dim,
             kernel_size=(1, filter_size),
             padding=(0, filter_size//2),
+            groups=dim,
             bias=False
         )
         self.gaussian_filter_horizontal.weight.data.copy_(torch.from_numpy(generated_filters))
 
         self.gaussian_filter_vertical = nn.Conv2d(
-            1,
-            1,
+            dim,
+            dim,
             kernel_size=(filter_size, 1),
             padding=(filter_size//2, 0),
+            groups=dim,
             bias=False
         )
         self.gaussian_filter_vertical.weight.data.copy_(torch.from_numpy(generated_filters.T))
@@ -362,19 +364,21 @@ class CannyFilter(nn.Module):
                                  [1, 0, -1]])
 
         self.sobel_filter_horizontal = nn.Conv2d(
-            1,
-            1,
+            dim,
+            dim,
             kernel_size=sobel_filter.shape,
             padding=sobel_filter.shape[0]//2,
+            groups=dim,
             bias=False
         )
         self.sobel_filter_horizontal.weight.data.copy_(torch.from_numpy(sobel_filter))
 
         self.sobel_filter_vertical = nn.Conv2d(
-            1,
-            1,
+            dim,
+            dim,
             kernel_size=sobel_filter.shape,
             padding=sobel_filter.shape[0]//2,
+            groups=dim,
             bias=False
         )
         self.sobel_filter_vertical.weight.data.copy_(torch.from_numpy(sobel_filter.T))
@@ -434,84 +438,69 @@ class CannyFilter(nn.Module):
         )
 
         self.directional_filter = nn.Conv2d(
-            1,
-            8,
+            dim,
+            8 * dim,
             kernel_size=filter_0.shape,
             padding=filter_0.shape[-1]//2,
+            groups=dim,
             bias=False
         )
-        self.directional_filter.weight.data.copy_(torch.from_numpy(all_filters[:, None, ...]))
-        # self.directional_filter.bias.data.copy_(
-            # torch.from_numpy(np.zeros(shape=(all_filters.shape[0],)))
-        # )
+        self.directional_filter.weight.data.copy_(
+            torch.from_numpy(
+                np.stack(
+                    [all_filters for __ in range(dim)]
+                ).reshape((dim*8, *filter_0.shape))[:, None, ...]
+            )
+        )
 
     def forward(self, img):
         """Forward pass"""
-        B, C, H, W = img.size()
+        blurred = self.gaussian_filter_horizontal(img)
+        blurred = self.gaussian_filter_vertical(blurred)
 
-        total_blurred = torch.zeros(img.size())
-        total_grad_mag = torch.zeros(img.size())
-        total_thresholded = torch.zeros(img.size())
-        total_thin_edges = torch.zeros(img.size())
+        grad_x = self.sobel_filter_horizontal(blurred)
+        grad_y = self.sobel_filter_vertical(blurred)
 
-        for c in range(C):
-            blurred = self.gaussian_filter_horizontal(img[:, c:c+1])
-            blurred = self.gaussian_filter_vertical(blurred)
-            total_blurred[:, c:c+1] = self.gaussian_filter_vertical(blurred)
+        # Thick edges
+        grad_mag = torch.sqrt(grad_x**2 + grad_y**2)
 
-            grad_x = self.sobel_filter_horizontal(blurred)
-            grad_y = self.sobel_filter_vertical(blurred)
+        grad_orientation = torch.atan2(grad_y, grad_x) * 180 / torch.pi
+        grad_orientation += 180.0
+        grad_orientation = torch.round(grad_orientation / 45.0 ) * 45.0
 
-            # Thick edges
-            grad_mag = torch.sqrt(grad_x**2 + grad_y**2).view(B, 1, H, W)
-            total_grad_mag[:, c:c+1] = grad_mag
+        # Thin edged (non-max suppression)
+        all_filtered = self.directional_filter(grad_mag)
 
-            grad_orientation = torch.atan2(grad_y.view(B, 1, H, W), grad_x.view(B, 1, H, W)) * 180 / torch.pi
-            grad_orientation += 180.0
-            grad_orientation = torch.round(grad_orientation / 45.0 ) * 45.0
+        inidices_positive = (grad_orientation / 45) % 8
+        inidices_negative = ((grad_orientation / 45) + 4) % 8
 
-            # Thin edged (non-max suppression)
-            all_filtered = self.directional_filter(grad_mag)
+        pixel_count = torch.prod(torch.tensor(img.size()))
+        pixel_range = torch.arange(0, pixel_count)
 
-            inidices_positive = (grad_orientation / 45) % 8
-            inidices_negative = ((grad_orientation / 45) + 4) % 8
+        indices = (inidices_positive.view(-1).data * pixel_count + pixel_range)
+        channel_select_filtered_positive = all_filtered.view(-1)[indices.long()].view(
+            img.size()
+        )
 
-            height = inidices_positive.size()[-2]
-            width = inidices_positive.size()[-1]
-            pixel_count = height * width * B
-            pixel_range = torch.FloatTensor([range(pixel_count)])
+        indices = (inidices_negative.view(-1).data * pixel_count + pixel_range)
+        channel_select_filtered_negative = all_filtered.view(-1)[indices.long()].view(
+            img.size()
+        )
 
-            indices = (inidices_positive.view(-1).data * pixel_count + pixel_range).squeeze()
-            channel_select_filtered_positive = all_filtered.view(-1)[indices.long()].view(
-                B, 1, height, width
-            )
+        channel_select_filtered = torch.stack(
+            [channel_select_filtered_positive, channel_select_filtered_negative]
+        )
 
-            indices = (inidices_negative.view(-1).data * pixel_count + pixel_range).squeeze()
-            channel_select_filtered_negative = all_filtered.view(-1)[indices.long()].view(
-                B, 1, height, width
-            )
+        is_max = channel_select_filtered.min(dim=0)[0] > 0.0
 
-            channel_select_filtered = torch.stack(
-                [channel_select_filtered_positive, channel_select_filtered_negative]
-            )
+        thin_edges = grad_mag.clone()
+        thin_edges[is_max==0] = 0.0
 
-            is_max = channel_select_filtered.min(dim=0)[0] > 0.0
+        # Threshold
+        thresholded = thin_edges.clone()
+        thresholded = self.thresholding(thresholded)
 
-            thin_edges = grad_mag.clone()
-            thin_edges[is_max==0] = 0.0
-
-            # Threshold
-            thresholded = thin_edges.clone()
-            thresholded = self.thresholding(torch.sigmoid(thresholded))
-            # thresholded[thin_edges<self.threshold] = 0.0
-
-            # early_threshold = grad_mag.clone()
-            # early_threshold[grad_mag<self.threshold] = 0.0
-
-            total_thresholded[:, c:c+1] = self.hysteresis(thresholded)
-            total_thin_edges[:, c:c+1] = thin_edges
-
-        return total_thresholded, total_thin_edges, total_grad_mag
+        return thresholded, thin_edges, grad_mag
 
     def thresholding(self, img):
         """Double thresholding"""
@@ -560,4 +549,3 @@ class CannyFilter(nn.Module):
             [alpha, beta, (1 - alpha) * center[0] - beta * center[1]],
             [-beta, alpha, beta * center[0] + (1 - alpha) * center[1]]
         ])
-
