@@ -334,7 +334,7 @@ class CannyFilter(nn.Module):
         self.threshold_high = nn.Parameter(torch.tensor(0.98))
 
         self.strong = 1.0
-        self.weak = 0.1
+        self.weak = 0.0
 
         filter_size = 5
         generated_filters = gaussian(filter_size,std=1.0).reshape([1, filter_size])
@@ -474,8 +474,8 @@ class CannyFilter(nn.Module):
         inidices_positive = (grad_orientation / 45) % 8
         inidices_negative = ((grad_orientation / 45) + 4) % 8
 
-        pixel_count = torch.prod(torch.tensor(img.size()))
-        pixel_range = torch.arange(0, pixel_count)
+        pixel_count = torch.prod(torch.tensor(img.size())).to(DEVICE)
+        pixel_range = torch.arange(0, pixel_count).to(DEVICE)
 
         indices = (inidices_positive.view(-1).data * pixel_count + pixel_range)
         channel_select_filtered_positive = all_filtered.view(-1)[indices.long()].view(
