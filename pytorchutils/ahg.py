@@ -116,7 +116,7 @@ class AHGModel(nn.Module):
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(64)
 
-        self.canny = CannyFilter(32)
+        self.canny = CannyFilter(self.output_size)
 
         # self.skip_conv1 = nn.Conv2d(1024, 512, 1)
         # self.skip_conv2 = nn.Conv2d(512, 256, 1)
@@ -125,7 +125,7 @@ class AHGModel(nn.Module):
 
         self.classifier = nn.Conv2d(32, self.output_size, kernel_size=1)
 
-        self.edges_fc = nn.Conv2d(32, 1, 1)
+        self.edges_fc = nn.Conv2d(self.output_size, 1, 1)
 
     def forward(self, inp):
         """Forward pass"""
@@ -171,11 +171,11 @@ class AHGModel(nn.Module):
         pred_out = self.activation(self.deconv5(pred_out))
         pred_out = self.attn5(pred_out)
 
-        edges = self.canny(pred_out)
-        edges = self.edges_fc(edges)
-
         # Size = (N, output_size, H/1, W/1)
         pred_out = self.classifier(pred_out)
+
+        edges = self.canny(pred_out)
+        edges = self.edges_fc(edges).squeeze()
 
         return pred_out, edges
 
