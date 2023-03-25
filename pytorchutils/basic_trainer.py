@@ -83,12 +83,12 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             if index > epoch_idx:
                 epoch_idx = index
 
-        if isinstance(self.model, (list, np.ndarray)):
-            for idx, __ in enumerate(self.model):
-                self.load_model(self.model[idx], epoch_idx, idx)
-        else:
-            self.load_model(self.model, epoch_idx)
-        self.load_optimizer(epoch_idx)
+        # if isinstance(self.model, (list, np.ndarray)):
+            # for idx, __ in enumerate(self.model):
+                # self.load_model(self.model[idx], epoch_idx, idx)
+        # else:
+            # self.load_model(self.model, epoch_idx)
+        # self.load_optimizer(epoch_idx)
 
     def init_weights(self, model):
         """Initialize model weights using specified method. Xavier initialization is the default"""
@@ -141,12 +141,13 @@ class BasicTrainer(metaclass=abc.ABCMeta):
     def get_weights(self):
         """Template for retrieval of model weights"""
 
-    def validate(self, epoch_idx):
+    def validate(self, epoch_idx, train=True):
         """The preprocessor has to provide a validate function"""
         try:
             return self.preprocessor.validate(
                 self.evaluate,
-                epoch_idx
+                epoch_idx,
+                train
             )
         except AttributeError as exc:
             print(
@@ -167,14 +168,14 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             errors = np.empty((self.max_iter - start_epoch) // validate_every)
             stds = np.empty((self.max_iter - start_epoch) // validate_every)
         for epoch_idx in range(start_epoch, self.max_iter):
-            print("Epoch {}...".format(epoch_idx))
+            # print("Epoch {}...".format(epoch_idx))
             if isinstance(self.model, (list, np.ndarray)):
                 for idx, __ in enumerate(self.model):
                     self.model[idx].train()
             else:
                 self.model.train()
-            epoch_loss = self.learn_from_epoch()
-            print("Epoch loss: {}".format(epoch_loss))
+            epoch_loss = self.learn_from_epoch(epoch_idx)
+            # print("Epoch loss: {}".format(epoch_loss))
             # Negative number to not save during training
             if save_every > 0 and epoch_idx % save_every == 0:
                 if isinstance(self.model, (list, np.ndarray)):
@@ -188,7 +189,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                 else:
                     self.save_model(self.model, epoch_idx, max_to_keep=self.max_models_to_keep)
                 self.save_optimizer(epoch_idx, max_to_keep=self.max_models_to_keep)
-            if validate_every > 0 and epoch_idx % validate_every == 0 and epoch_idx > 0:
+            if validate_every > 0 and epoch_idx % validate_every == 0:# and epoch_idx > 0:
                 error, std = self.validate(epoch_idx)
                 errors[(epoch_idx - start_epoch) // validate_every - 1] = error
                 stds[(epoch_idx - start_epoch) // validate_every - 1] = std
@@ -242,7 +243,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             model_idx,
             epoch_idx
         )
-        print("Saving model to {}".format(checkpoint_file))
+        # print("Saving model to {}".format(checkpoint_file))
         state = {
             'state_dict': model.state_dict(),
         }
@@ -265,7 +266,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             type(self.optimizer).__name__,
             epoch_idx
         )
-        print("Saving optimizer to {}".format(checkpoint_file))
+        # print("Saving optimizer to {}".format(checkpoint_file))
         state = {
             'epoch': epoch_idx,
             'optimizer': self.optimizer.state_dict()
