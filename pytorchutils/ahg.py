@@ -132,6 +132,7 @@ class AHGModel(nn.Module):
         if self.n_channels != 3:
             inp = torch.sigmoid(self.channel_to_vgg(inp))
         inp = self.norm(inp)
+        b, c, h, w = inp.size()
         vgg_out = self.pretrained_net(inp)
         x_5 = vgg_out['x5']  # size = (N, 512, H/32, W/32)
         x_4 = vgg_out['x4']  # size = (N, 512, H/16, W/16)
@@ -175,7 +176,7 @@ class AHGModel(nn.Module):
         pred_out = self.classifier(pred_out)
 
         edges = self.canny(pred_out)
-        edges = self.edges_fc(edges).squeeze()
+        edges = self.edges_fc(edges).view(b, h, w)
 
         return pred_out, edges
 
