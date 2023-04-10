@@ -83,12 +83,12 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             if index > epoch_idx:
                 epoch_idx = index
 
-        # if isinstance(self.model, (list, np.ndarray)):
-            # for idx, __ in enumerate(self.model):
-                # self.load_model(self.model[idx], epoch_idx, idx)
-        # else:
-            # self.load_model(self.model, epoch_idx)
-        # self.load_optimizer(epoch_idx)
+        if isinstance(self.model, (list, np.ndarray)):
+            for idx, __ in enumerate(self.model):
+                self.load_model(self.model[idx], epoch_idx, idx)
+        else:
+            self.load_model(self.model, epoch_idx)
+        self.load_optimizer(epoch_idx)
 
     def init_weights(self, model):
         """Initialize model weights using specified method. Xavier initialization is the default"""
