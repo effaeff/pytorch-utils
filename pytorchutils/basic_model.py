@@ -26,16 +26,14 @@ class BasicModel(nn.Module, metaclass=abc.ABCMeta):
             warnings.warn("Warning: No input size defined.")
         if self.output_size == 0:
             raise ValueError("Error: No output size defined.")
-        if self.nb_units is None:
-            warnings.warn(
-                "Warning: No number of hidden units per layer defined. "
-                "This value has to be specified for most neural network architectures."
-            )
+        # if self.nb_units is None:
+            # warnings.warn(
+                # "Warning: No number of hidden units per layer defined. "
+                # "This value has to be specified for most neural network architectures."
+            # )
         if self.nb_layers == 0:
-            raise ValueError(
-                "Error: No number of hidden layers defined. "
-                "Please specify how many hidden layers should be used, "
-                "even if you intend to only use one hidden layer."
+            warnings.warn(
+                "Warning: No number of hidden layers defined."
             )
         # No dropout by default
         self.dropout_rate = self.config.get('dropout_rate', 0.0)

@@ -6,7 +6,7 @@ from torchvision import models
 
 from pytorchutils.globals import nn
 
-class FCNModel(nn.Module):
+class Segmentation(nn.Module):
     """Actual class for FCN model using the ResNet architecture as backbone"""
     def __init__(self, config):
         super().__init__()
@@ -24,7 +24,13 @@ class FCNModel(nn.Module):
             weights='DEFAULT'#,
             # num_classes=self.output_size
         )
-        self.model.classifier[4] = nn.Conv2d(512, self.output_size, 1)
+        if self.arch == 'deeplabv3_resnet50':
+            self.model.classifier[4] = nn.Conv2d(256, self.output_size, 1)
+        elif self.arch == 'lraspp_mobilenet_v3_large':
+            self.model.classifier.low_classifier = nn.Conv2d(40, self.output_size, 1)
+            self.model.classifier.high_classifier = nn.Conv2d(128, self.output_size, 1)
+        elif self.arch == 'fcn_resnet50':
+            self.model.classifier[4] = nn.Conv2d(512, self.output_size, 1)
 
     def forward(self, inp):
         """Forward pass through FCN"""

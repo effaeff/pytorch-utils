@@ -84,7 +84,7 @@ class AVGGModel(models.vgg.VGG):
                 f"weights={weight_str},"
                 f"batch_norm={batch_norm}, progress=False, cfg='D').state_dict())"
             )
-            print('Pretrained')
+            # print('Pretrained')
 
         if not requires_grad:
             for param in super().parameters():

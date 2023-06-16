@@ -13,6 +13,7 @@ import misc
 from pytorchutils.globals import nn, torch, DEVICE
 from pytorchutils import losses
 
+from pytorchutils.early_stopper import EarlyStopper
 
 class BasicTrainer(metaclass=abc.ABCMeta):
     """Class for basic trainer"""
@@ -83,12 +84,17 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             if index > epoch_idx:
                 epoch_idx = index
 
-        # if isinstance(self.model, (list, np.ndarray)):
-            # for idx, __ in enumerate(self.model):
-                # self.load_model(self.model[idx], epoch_idx, idx)
-        # else:
-            # self.load_model(self.model, epoch_idx)
-        # self.load_optimizer(epoch_idx)
+        if isinstance(self.model, (list, np.ndarray)):
+            for idx, __ in enumerate(self.model):
+                self.load_model(self.model[idx], epoch_idx, idx)
+        else:
+            self.load_model(self.model, epoch_idx)
+        self.load_optimizer(epoch_idx)
+
+        patience = self.config.get('patience', 10)
+        self.max_problem = self.config.get('max_problem', True)
+        min_delta = self.config.get('min_delta', 0)
+        self.early_stopper = EarlyStopper(patience=patience, min_delta=min_delta, max=self.max_problem)
 
     def init_weights(self, model):
         """Initialize model weights using specified method. Xavier initialization is the default"""
@@ -141,13 +147,15 @@ class BasicTrainer(metaclass=abc.ABCMeta):
     def get_weights(self):
         """Template for retrieval of model weights"""
 
-    def validate(self, epoch_idx, train=True):
+    def validate(self, epoch_idx, save_eval, verbose, save_suffix=''):
         """The preprocessor has to provide a validate function"""
         try:
             return self.preprocessor.validate(
                 self.evaluate,
                 epoch_idx,
-                train
+                save_eval,
+                verbose,
+                save_suffix
             )
         except AttributeError as exc:
             print(
@@ -160,12 +168,12 @@ class BasicTrainer(metaclass=abc.ABCMeta):
         """Function for prediction capabilities of the model"""
         return
 
-    def train(self, validate_every=0, save_every=1):
+    def train(self, validate_every=0, save_every=1, save_eval=True, verbose=True):
         """This function is usually common to all models"""
-        print("Start training...")
+        # print("Start training...")
         start_epoch = self.current_epoch
         if validate_every > 0:
-            errors = np.empty((self.max_iter - start_epoch) // validate_every)
+            accs = np.empty((self.max_iter - start_epoch) // validate_every)
             stds = np.empty((self.max_iter - start_epoch) // validate_every)
         for epoch_idx in range(start_epoch, self.max_iter):
             # print("Epoch {}...".format(epoch_idx))
@@ -174,7 +182,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                     self.model[idx].train()
             else:
                 self.model.train()
-            epoch_loss = self.learn_from_epoch(epoch_idx)
+            epoch_loss = self.learn_from_epoch(epoch_idx, verbose)
             # print("Epoch loss: {}".format(epoch_loss))
             # Negative number to not save during training
             if save_every > 0 and epoch_idx % save_every == 0:
@@ -190,40 +198,46 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                     self.save_model(self.model, epoch_idx, max_to_keep=self.max_models_to_keep)
                 self.save_optimizer(epoch_idx, max_to_keep=self.max_models_to_keep)
             if validate_every > 0 and epoch_idx % validate_every == 0:# and epoch_idx > 0:
-                error, std = self.validate(epoch_idx)
-                errors[(epoch_idx - start_epoch) // validate_every - 1] = error
+                acc , std = self.validate(epoch_idx, save_eval, verbose)
+                accs[(epoch_idx - start_epoch) // validate_every - 1] = acc
                 stds[(epoch_idx - start_epoch) // validate_every - 1] = std
-                print("Validation error: {} % +- {} %".format(error, std))
+
+                # print("Validation error: {} % +- {} %".format(acc, std))
+
+                if self.early_stopper.early_stop(acc):
+                    return np.max(accs) if self.max_problem else np.min(accs)
+
             self.current_epoch += 1
 
         # Save error progression
-        if validate_every > 0:
-            np.save(
-                f'{self.results_dir}/error_progression.npy',
-                np.array([
-                    np.arange(start_epoch, self.max_iter, validate_every),
-                    errors,
-                    stds
-                ])
-            )
+        # if validate_every > 0:
+            # np.save(
+                # f'{self.results_dir}/error_progression.npy',
+                # np.array([
+                    # np.arange(start_epoch, self.max_iter, validate_every),
+                    # accs,
+                    # stds
+                # ])
+            # )
             # Plot error progression
-            __, axs = plt.subplots(1, 1)
-            axs.plot(np.arange(start_epoch, self.max_iter-1, validate_every), errors)
-            axs.fill_between(
-                np.arange(start_epoch, self.max_iter-1, validate_every),
-                errors - stds,
-                errors + stds,
-                alpha=.5
-            )
-            axs.set_xlabel("Epoch")
-            axs.set_ylabel("Validation accuracy")
-            plt.savefig(
-                f'{self.results_dir}/accuracy_progression.png',
-                format='png',
-                dpi=600,
-                bbox_inches='tight'
-            )
-            plt.close()
+            # __, axs = plt.subplots(1, 1)
+            # axs.plot(np.arange(start_epoch, self.max_iter-1, validate_every), accs)
+            # axs.fill_between(
+                # np.arange(start_epoch, self.max_iter-1, validate_every),
+                # accs - stds,
+                # accs + stds,
+                # alpha=.5
+            # )
+            # axs.set_xlabel("Epoch")
+            # axs.set_ylabel("Validation accuracy")
+            # plt.savefig(
+                # f'{self.results_dir}/accuracy_progression.png',
+                # format='png',
+                # dpi=600,
+                # bbox_inches='tight'
+            # )
+            # plt.close()
+        return np.max(accs)
 
     def infer(self, *args):
         """Utilized trained model to do predictions"""
