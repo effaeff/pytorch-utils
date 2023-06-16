@@ -3,8 +3,8 @@ Multilayer Perceptron model using PyTorch.
 """
 
 import misc
-from basic_model import BasicModel
-from globals import nn
+from pytorchutils.basic_model import BasicModel
+from pytorchutils.globals import nn
 
 class MLPModel(BasicModel):
     """
