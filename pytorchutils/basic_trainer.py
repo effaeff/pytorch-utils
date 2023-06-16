@@ -91,7 +91,10 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             self.load_model(self.model, epoch_idx)
         self.load_optimizer(epoch_idx)
 
-        self.early_stopper = EarlyStopper(patience=30, min_delta=0)
+        patience = self.config.get('patience', 10)
+        self.max_problem = self.config.get('max_problem', True)
+        min_delta = self.config.get('min_delta', 0)
+        self.early_stopper = EarlyStopper(patience=patience, min_delta=min_delta, max=self.max_problem)
 
     def init_weights(self, model):
         """Initialize model weights using specified method. Xavier initialization is the default"""
@@ -193,14 +196,14 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                     self.save_model(self.model, epoch_idx, max_to_keep=self.max_models_to_keep)
                 self.save_optimizer(epoch_idx, max_to_keep=self.max_models_to_keep)
             if validate_every > 0 and epoch_idx % validate_every == 0:# and epoch_idx > 0:
-                acc , std = self.validate(epoch_idx, save_eval)
+                acc , std = self.validate(epoch_idx, save_eval, verbose)
                 accs[(epoch_idx - start_epoch) // validate_every - 1] = acc
                 stds[(epoch_idx - start_epoch) // validate_every - 1] = std
 
                 # print("Validation error: {} % +- {} %".format(acc, std))
 
-                # if self.early_stopper.early_stop(acc):
-                    # return np.max(accs)
+                if self.early_stopper.early_stop(acc):
+                    return np.max(accs) if self.max_problem else np.min(accs)
 
             self.current_epoch += 1
 
