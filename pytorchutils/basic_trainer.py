@@ -147,13 +147,15 @@ class BasicTrainer(metaclass=abc.ABCMeta):
     def get_weights(self):
         """Template for retrieval of model weights"""
 
-    def validate(self, epoch_idx, save_eval):
+    def validate(self, epoch_idx, save_eval, verbose, save_suffix=''):
         """The preprocessor has to provide a validate function"""
         try:
             return self.preprocessor.validate(
                 self.evaluate,
                 epoch_idx,
-                save_eval
+                save_eval,
+                verbose,
+                save_suffix
             )
         except AttributeError as exc:
             print(
