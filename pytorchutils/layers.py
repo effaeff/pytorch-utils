@@ -210,14 +210,41 @@ class LinearAttention(nn.Module):
 
         return out#, context
 
-    def plot_attn(self, attn, f_name):
-        """Method for plotting attention map"""
-        fig, axs = plt.subplots(8, 8)
-        for idx, channel in enumerate(attn[:64]):
-            axs[idx//8][idx%8].imshow(channel.detach().cpu().numpy(), cmap='Greys')
-        plt.setp(np.reshape(axs, (-1,)), xticks=[], yticks=[])
-        plt.tight_layout(pad=0)
-        plt.savefig(f"{f_name}_layer{self.layer_idx}.png", dpi=600)
+class LinearAttention3d(nn.Module):
+    """
+    Linear attention module
+        - References: https://github.com/lucidrains/denoising-diffusion-pytorch
+    """
+    def __init__(self, layer_idx, dim, heads=8, dim_head=32):
+        super().__init__()
+        self.layer_idx = layer_idx
+        self.scale = dim_head**-0.5
+        self.heads = heads
+        hidden_dim = dim_head * heads
+        self.to_qkv = nn.Conv3d(dim, hidden_dim * 3, 1, bias=False)
+
+        self.to_out = nn.Conv3d(hidden_dim, dim, 1)
+
+    def forward(self, x):
+        """Forward pass"""
+        b, c, d, h, w = x.shape
+        qkv = self.to_qkv(x).chunk(3, dim=1)
+        q, k, v = map(
+            lambda t: einops.rearrange(t, "b (h c) x y z -> b h c (x y z)", h=self.heads), qkv
+        )
+
+        q = q.softmax(dim=-2)
+        k = k.softmax(dim=-1)
+
+        q = q * self.scale
+        context = torch.einsum("b h d n, b h e n -> b h d e", k, v)
+
+        out = torch.einsum("b h d e, b h d n -> b h e n", context, q)
+        out = einops.rearrange(out, "b h c (x y z) -> b (h c) x y z", h=self.heads, x=d, y=h, z=w)
+
+        out = self.to_out(out)
+
+        return out#, context
 
 class PatchEmbedding(nn.Module):
     """Sequentialize images through lineralized patches"""
@@ -308,6 +335,22 @@ class PreNorm(nn.Module):
         inp = self.norm(inp)
         return self.func(inp)
 
+class PreNorm3d(nn.Module):
+    """
+    Apply norm before func
+        - References: https://github.com/lucidrains/denoising-diffusion-pytorch
+    """
+    def __init__(self, dim, func):
+        super().__init__()
+        self.func = func
+        # self.norm = nn.GroupNorm(8, dim)
+        self.norm = LayerNorm3d(dim)
+
+    def forward(self, inp):
+        """Forward pass"""
+        inp = self.norm(inp)
+        return self.func(inp)
+
 class LayerNorm(nn.Module):
     """
     Layer norm module
@@ -316,6 +359,22 @@ class LayerNorm(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.g = nn.Parameter(torch.ones(1, dim, 1, 1))
+
+    def forward(self, x):
+        """Forard pass"""
+        eps = 1e-5 if x.dtype == torch.float32 else 1e-3
+        var = torch.var(x, dim = 1, unbiased = False, keepdim = True)
+        mean = torch.mean(x, dim = 1, keepdim = True)
+        return (x - mean) * (var + eps).rsqrt() * self.g
+
+class LayerNorm3d(nn.Module):
+    """
+    Layer norm module
+        - References: https://github.com/lucidrains/denoising-diffusion-pytorch
+    """
+    def __init__(self, dim):
+        super().__init__()
+        self.g = nn.Parameter(torch.ones(1, dim, 1, 1, 1))
 
     def forward(self, x):
         """Forard pass"""
