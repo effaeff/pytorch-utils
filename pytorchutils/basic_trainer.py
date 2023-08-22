@@ -46,7 +46,10 @@ class BasicTrainer(metaclass=abc.ABCMeta):
 
         self.loss = (
             getattr(nn, loss_label)() if getattr(nn, loss_label, None) is not None else
-            getattr(losses, loss_label)()
+            getattr(losses, loss_label)(
+                gamma=5,
+                alpha=[0.4, 1, 1]
+            )
         )
 
         # Every trainer has one or an array of models.
@@ -60,9 +63,9 @@ class BasicTrainer(metaclass=abc.ABCMeta):
             parameters = list(self.model.parameters())
         self.optimizer = getattr(torch.optim, self.config.get('optimizer', 'Adam'))(
             parameters,
-            lr=self.learning_rate,
-            betas=self.config.get('optim_betas', (0.9, 0.999)),
-            weight_decay=config.get('reg_lambda', 0.0)
+            lr=self.learning_rate
+            # betas=self.config.get('optim_betas', (0.9, 0.999)),
+            # weight_decay=config.get('reg_lambda', 0.0)
         )
 
         self._get_batches_fn = None
@@ -124,7 +127,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
         if os.path.isfile(checkpoint_file):
             print("Loading model checkpoint from {}".format(checkpoint_file))
             state = torch.load(checkpoint_file)
-            model.load_state_dict(state['state_dict'])
+            model.load_state_dict(state['state_dict'], strict=False)
 
     def load_optimizer(self, epoch_idx):
         """Initialize the optimizer"""

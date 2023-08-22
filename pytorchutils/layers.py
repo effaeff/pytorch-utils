@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import cv2
 
 from pytorchutils.globals import torch, nn, DEVICE
+from torch.nn import functional as F
 
 class WindowingLayer(nn.Module):
     """Class for sparse model"""
@@ -139,6 +140,53 @@ class WSConvTranspose2d(nn.ConvTranspose2d):
             self.groups,
             self.dilation
         )
+
+class CausalAttention(nn.Module):
+    """
+    Causal attention module
+    """
+    def __init__(self, dim, heads=8, dim_head=32):
+        super().__init__()
+        self.scale = dim_head**-0.5
+        self.heads = heads
+        self.hidden_dim = dim_head * heads
+        self.to_qkv = nn.Conv2d(dim, self.hidden_dim * 3, 1, bias=False)
+        self.to_out = nn.Conv2d(self.hidden_dim, dim, 1)
+
+        self.attn = nn.MultiheadAttention(self.hidden_dim, heads, batch_first=True)
+
+    def forward(self, x):
+        """Forward pass"""
+        b, c, h, w = x.shape
+        qkv = self.to_qkv(x).chunk(3, dim=1)
+        q, k, v = map(
+            lambda t: einops.rearrange(t, "b h x y -> b (x y) h", h=self.hidden_dim), qkv
+            # lambda t: einops.rearrange(t, "b (h c) x y -> b h c (x y)", h=self.heads), qkv
+        )
+        # q = q * self.scale
+
+        # sim = torch.einsum("b h d i, b h d j -> b h i j", q, k)
+
+        # mask = torch.tril(torch.ones(sim.size())).to(DEVICE)
+        # sim = sim.masked_fill(mask == 0, float('-inf'))
+
+        # attn = sim.softmax(dim=-1)
+
+        # out = torch.einsum("b h i j, b h d j -> b h i d", attn, v)
+
+        # out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+
+        # mask = torch.ones(h*w, h*w).tril(diagonal=0)
+        # mask = mask.masked_fill(mask == 0, -float('inf'))
+
+        # out = self.attn(q, k, v, need_weights=False, attn_mask=mask, is_causal=True)[0]
+        out = self.attn(q, k, v, need_weights=False)[0]
+
+
+        # out = einops.rearrange(out, "b h (x y) d -> b (h d) x y", x=h, y=w)
+        out = einops.rearrange(out, "b (x y) h -> b h x y", x=h, y=w, h=self.hidden_dim)
+        return self.to_out(out)
+
 
 class Attention(nn.Module):
     """

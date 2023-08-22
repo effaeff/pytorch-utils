@@ -28,6 +28,8 @@ class AVGGModel(models.vgg.VGG):
         pretrained = self.config.get('pretrained', True)
         batch_norm = self.config.get('vgg_bn', False)
 
+        drop_rate = self.config.get('drop_rate', 0.3)
+
         self.convlayer_ranges = {
             'vgg11': ((0, 3), (3, 6),  (6, 11),  (11, 16), (16, 21)),
             'vgg13': ((0, 5), (5, 10), (10, 15), (15, 20), (20, 25)),
@@ -115,7 +117,7 @@ class AVGGModel(models.vgg.VGG):
         insert_modules[-3] = Residual(PreNorm(256, Attention(256))).to(DEVICE)
         #insert_modules[-4] = Residual(PreNorm(128, Attention(128))).to(DEVICE)
         for idx, mod in zip(insert_indices, insert_modules):
-            exec(f"self.features[idx] = nn.Sequential(self.features[idx], mod)")
+            exec(f"self.features[idx] = nn.Sequential(self.features[idx], mod, nn.Dropout(drop_rate))")
 
     def forward(self, x):
         """Forward pass"""

@@ -17,6 +17,9 @@ class AHGModel(nn.Module):
 
         self.n_channels = self.config.get('n_channels', 3)
         self.output_size = self.config.get('output_size', 0)
+
+        drop_rate = self.config.get('drop_rate', 0.3)
+
         if self.output_size == 0:
             raise ValueError("Error: No output size defined.")
 
@@ -104,12 +107,12 @@ class AHGModel(nn.Module):
         #self.attn1 = Residual(PreNorm(512, LinearAttention(0, 512)))
         #self.attn2 = Residual(PreNorm(256, LinearAttention(0, 256)))
         #self.attn3 = Residual(PreNorm(128, LinearAttention(0, 128)))
-        self.attn4 = Residual(PreNorm(64, LinearAttention(0, 64)))
-        self.attn1 = Residual(PreNorm(512, Attention(512)))
-        self.attn2 = Residual(PreNorm(256, Attention(256)))
-        self.attn3 = Residual(PreNorm(128, Attention(128)))
+        self.attn1 = nn.Sequential((PreNorm(512, Attention(512))), nn.Dropout(drop_rate))
+        self.attn2 = nn.Sequential((PreNorm(256, Attention(256))), nn.Dropout(drop_rate))
+        self.attn3 = nn.Sequential(Residual(PreNorm(128, Attention(128))), nn.Dropout(drop_rate))
         #self.attn4 = Residual(PreNorm(64, Attention(64)))
-        self.attn5 = Residual(PreNorm(32, LinearAttention(0, 32)))
+        self.attn4 = nn.Sequential(Residual(PreNorm(64, LinearAttention(0, 64))), nn.Dropout(drop_rate))
+        self.attn5 = nn.Sequential((PreNorm(32, LinearAttention(0, 32))), nn.Dropout(drop_rate))
 
         self.bn1 = nn.BatchNorm2d(512)
         self.bn2 = nn.BatchNorm2d(256)
