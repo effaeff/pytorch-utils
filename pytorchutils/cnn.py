@@ -27,8 +27,15 @@ class CNNModel(BasicModel):
 
         self.dim = self.config.get('dimension', 2)
 
+        # Calculate dimension of last conv output,
+        # assuming conv layers do not change input dimension and pool reduces it by half
+
+        last_dim = self.channels[-1]
+        for d in range(self.dim):
+            last_dim *= self.input_size[d] // (2**self.nb_layers)
+
         self.fc_units = []
-        self.fc_units.append(self.channels[-1])
+        self.fc_units.append(last_dim)
 
         if isinstance(self.nb_units, int) and self.nb_units is not None:
             self.fc_units.append(self.nb_units)
@@ -76,7 +83,7 @@ class CNNModel(BasicModel):
     def forward(self, inp):
         """Forward pass through convolution and fully connected layer"""
         pred_out = reduce(lambda x, y: y(x), self.conv_layer, inp)
-        pred_out = torch.squeeze(pred_out)
+        pred_out = torch.flatten(pred_out, start_dim=1)
         for layer in self.fc_layer[:-1]:
             pred_out = layer(pred_out)
             pred_out = self.dropout(pred_out)
