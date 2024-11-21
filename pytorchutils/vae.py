@@ -15,6 +15,8 @@ class VariationalEncoder(BasicModel):
 
         # Convolutions are used for encoder layer by default
         self.channels = self.config.get('channels', None)
+        self.latent_length = self.config.get('latent_length', 1)
+
         if self.channels is None:
             raise ValueError(
                 "Error: No channels for convolutions defined. "
@@ -110,20 +112,21 @@ class VariationalEncoder(BasicModel):
     def fc_mu(self):
         """Property for layer to estimate mu of gaussian distribution"""
         # output_size defines latent dimension
-        return nn.Linear(self.channels[-1], self.output_size)
+        return nn.Linear(self.channels[-1] * self.latent_length, self.output_size)
 
     @misc.lazy_property
     def fc_sigma(self):
         """Property for layer to estimate sigma of gaussian distribution"""
         # output_size defines latent dimension
-        return nn.Linear(self.channels[-1], self.output_size)
+        return nn.Linear(self.channels[-1] * self.latent_length, self.output_size)
 
     def forward(self, inp):
         """Forward pass"""
-        inp = reduce(lambda x, y: y(x), self.encoder_layer, inp)
-        inp = torch.squeeze(inp)
-        mu = self.fc_mu(inp)
-        sigma = torch.exp(self.fc_sigma(inp))
+        out = reduce(lambda x, y: y(x), self.encoder_layer, inp)
+        out = torch.squeeze(out)
+        # out = torch.reshape(out, (out.shape[0], -1))
+        mu = self.fc_mu(out)
+        sigma = torch.exp(self.fc_sigma(out))
 
         latent = mu + sigma * self.normal_dist.sample(mu.shape) # Reparametrization trick
         self.kld = (sigma**2 + mu**2 - torch.log(sigma) - 1/2).sum()
