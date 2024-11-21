@@ -61,7 +61,7 @@ class CNNModel(BasicModel):
                     kernel_size=self.config.get('kernel_size_conv', 3),
                     stride=self.config.get('stride_conv', 1),
                     padding=self.config.get('padding_conv', 1),
-                    dilation=self.config.get('dilation_conv', 0)
+                    dilation=self.config.get('dilation_conv', 1)
                 ),
                 self.activation,
                 self.dropout_conv,
