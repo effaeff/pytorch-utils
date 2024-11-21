@@ -6,6 +6,7 @@ import numpy as np
 import misc
 from pytorchutils.basic_model import BasicModel
 from pytorchutils.globals import nn, torch
+from pytorchutils.layers import LinearAttention, Attention, PreNorm, Residual
 
 class CNNModel(BasicModel):
     """
@@ -46,6 +47,11 @@ class CNNModel(BasicModel):
 
         self.dropout_conv = nn.Dropout(p=self.config.get('dropout_rate_conv', 0.0))
 
+        self.attn = [
+            Residual(PreNorm(self.channels[layer_idx+1], Attention(self.channels[layer_idx+1])))
+            for layer_idx in range(self.nb_layers)
+        ]
+
         self.conv_layer
         self.fc_layer
 
@@ -65,6 +71,7 @@ class CNNModel(BasicModel):
                 ),
                 getattr(nn, f'BatchNorm{self.dim}d')(self.channels[layer_idx + 1]),
                 self.activation,
+                self.attn[layer_idx],
                 self.dropout_conv,
                 getattr(nn, f'MaxPool{self.dim}d')(
                     kernel_size=self.config.get('kernel_size_pool', 2),
