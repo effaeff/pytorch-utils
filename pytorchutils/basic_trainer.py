@@ -206,7 +206,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                 accs[(epoch_idx - start_epoch) // validate_every - 1] = acc
                 stds[(epoch_idx - start_epoch) // validate_every - 1] = std
 
-                # print("Validation error: {} % +- {} %".format(acc, std))
+                print("Validation error: {} % +- {} %".format(acc, std))
 
                 if self.early_stopper.early_stop(acc) and self.early_stopping:
                     return np.max(accs) if self.max_problem else np.min(accs)
