@@ -63,6 +63,7 @@ class CNNModel(BasicModel):
                     padding=self.config.get('padding_conv', 1),
                     dilation=self.config.get('dilation_conv', 1)
                 ),
+                getattr(nn, f'BatchNorm{self.dim}d')(self.channels[layer_idx + 1]),
                 self.activation,
                 self.dropout_conv,
                 getattr(nn, f'MaxPool{self.dim}d')(
