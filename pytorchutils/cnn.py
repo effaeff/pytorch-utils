@@ -44,6 +44,8 @@ class CNNModel(BasicModel):
                 self.fc_units.append(unit_value)
         self.fc_units.append(self.output_size)
 
+        self.dropout_conv = nn.Dropout(p=self.config.get('dropout_rate_conv', 0.0))
+
         self.conv_layer
         self.fc_layer
 
@@ -62,6 +64,7 @@ class CNNModel(BasicModel):
                     dilation=self.config.get('dilation_conv', 0)
                 ),
                 self.activation,
+                self.dropout_conv,
                 getattr(nn, f'MaxPool{self.dim}d')(
                     kernel_size=self.config.get('kernel_size_pool', 2),
                     padding=self.config.get('padding_pool', 0),
@@ -84,6 +87,7 @@ class CNNModel(BasicModel):
         """Forward pass through convolution and fully connected layer"""
         pred_out = reduce(lambda x, y: y(x), self.conv_layer, inp)
         pred_out = torch.flatten(pred_out, start_dim=1)
+        pred_out = self.dropout(pred_out)
         for layer in self.fc_layer[:-1]:
             pred_out = layer(pred_out)
             pred_out = self.dropout(pred_out)
