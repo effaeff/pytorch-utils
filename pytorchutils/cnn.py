@@ -70,8 +70,10 @@ class CNNModel(BasicModel):
                     kernel_size=self.config.get('kernel_size_pool', 2),
                     padding=self.config.get('padding_pool', 0),
                     stride=self.config.get('stride_pool', 2),
-                    dilation=self.config.get('dilation_pool', 1)
+                    dilation=self.config.get('dilation_pool', 1),
+                    ceil_mode=False
                 )
+
             )
             conv_layer.append(layer)
         return conv_layer
