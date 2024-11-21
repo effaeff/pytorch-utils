@@ -88,9 +88,12 @@ class CNNModel(BasicModel):
         """Forward pass through convolution and fully connected layer"""
         pred_out = reduce(lambda x, y: y(x), self.conv_layer, inp)
         pred_out = torch.flatten(pred_out, start_dim=1)
+
         pred_out = self.dropout(pred_out)
         for layer in self.fc_layer[:-1]:
             pred_out = layer(pred_out)
+            pred_out = self.activation(pred_out)
             pred_out = self.dropout(pred_out)
+
         pred_out = self.fc_layer[-1](pred_out)
         return pred_out
