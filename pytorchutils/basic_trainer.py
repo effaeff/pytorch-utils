@@ -30,6 +30,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
         self.models_dir = self.config.get('models_dir', './')
         self.results_dir = self.config.get('models_dir', './')
         self.max_models_to_keep = self.config.get('max_to_keep', -1)
+        self.early_stopping = self.config.get('early_stopping', False)
 
         # Remember current epoch for saving/resuming training
         self.current_epoch = 0
@@ -207,7 +208,7 @@ class BasicTrainer(metaclass=abc.ABCMeta):
 
                 # print("Validation error: {} % +- {} %".format(acc, std))
 
-                if self.early_stopper.early_stop(acc):
+                if self.early_stopper.early_stop(acc) and self.early_stopping:
                     return np.max(accs) if self.max_problem else np.min(accs)
 
             self.current_epoch += 1
@@ -240,7 +241,8 @@ class BasicTrainer(metaclass=abc.ABCMeta):
                 # bbox_inches='tight'
             # )
             # plt.close()
-        return np.max(accs)
+        if validate_every > 0:
+            return np.max(accs) if self.max_problem else np.min(accs)
 
     def infer(self, *args):
         """Utilized trained model to do predictions"""
