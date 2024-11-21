@@ -9,7 +9,7 @@ from inspect import isfunction
 
 from torchvision.transforms import GaussianBlur
 
-from scipy.signal import gaussian
+from scipy.signal.windows import gaussian
 
 import matplotlib.pyplot as plt
 
