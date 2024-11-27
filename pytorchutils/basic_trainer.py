@@ -18,7 +18,7 @@ from pytorchutils.early_stopper import EarlyStopper
 class BasicTrainer(metaclass=abc.ABCMeta):
     """Class for basic trainer"""
 
-    def __init__(self, config, model, preprocessor):
+    def __init__(self, config, model, preprocessor, load_epoch=0):
         # When working with NN, usually a random initialion is used.
         # Store the random seed and actually use it in PyTorch
         # to be able to reproduce the initialization
@@ -76,17 +76,21 @@ class BasicTrainer(metaclass=abc.ABCMeta):
 
         # Load previously saved state dicts to resume training
         epoch_idx = 0
-        checkpoint_files = [
-            filename for filename in os.listdir(self.models_dir) if filename.endswith('.pth.tar')
-        ]
-        for filename in checkpoint_files:
-            index = int(
-                re.search(
-                    r'\d+', os.path.basename(filename).split('_')[-2]
-                ).group()
-            )
-            if index > epoch_idx:
-                epoch_idx = index
+        if load_epoch == -1:
+            checkpoint_files = [
+                filename for filename in os.listdir(self.models_dir) if filename.endswith('.pth.tar')
+            ]
+            for filename in checkpoint_files:
+                index = int(
+                    re.search(
+                        r'\d+', os.path.basename(filename).split('_')[-2]
+                    ).group()
+                )
+                if index > epoch_idx:
+                    epoch_idx = index
+
+        else:
+            epoch_idx = load_epoch
 
         if isinstance(self.model, (list, np.ndarray)):
             for idx, __ in enumerate(self.model):
